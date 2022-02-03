@@ -1,3 +1,4 @@
+#!/usr/bin/python
 import yfinance as yf
 #import matplotlib.pyplot as plt
 
@@ -84,65 +85,5 @@ class Asset:
             self.mdd = t
 
 
-attack_db = yf.Tickers(' '.join(Attack_tickers))
-depense_db = yf.Tickers(' '.join(Depense_tickers))
-
-attack_data_frame = []
-depense_data_frame = []
-for ticker in Attack_tickers:
-    attack_data_frame.append(attack_db.tickers[ticker].history(
-        period=Period,
-        interval='1mo',
-    ))
-
-for ticker in Depense_tickers:
-    depense_data_frame.append(depense_db.tickers[ticker].history(
-        period=Period, interval='1mo'))
-
-vaa = VAA()
-is_NaN = attack_data_frame[0].isnull()
-
-asset = Asset(100000)
-
-for index in is_NaN.index:
-    if is_NaN.loc[index]['Open']:
-        continue
-
-    attack_data = []
-    depense_data = []
-
-    for i in range(len(Attack_tickers)):
-        attack_data.append(attack_data_frame[i].loc[index])
-    for i in range(len(Depense_tickers)):
-        depense_data.append(depense_data_frame[i].loc[index])
-    vaa.push(attack_data, depense_data)
-    ticker = vaa.run()
-    if ticker == 'None':
-        continue
-
-    if asset.ticker == ticker:
-        continue
-
-    if asset.cash == 0:
-        try:
-            i = Attack_tickers.index(asset.ticker)
-            price = attack_data_frame[i].loc[index]['Close']
-            asset.sell(price)
-        except:
-            i = Depense_tickers.index(asset.ticker)
-            price = depense_data_frame[i].loc[index]['Close']
-            asset.sell(price)
-
-    try:
-        i = Attack_tickers.index(ticker)
-        price = attack_data_frame[i].loc[index]['Close']
-        num = asset.cash / price
-        asset.buy(ticker, num)
-    except:
-        i = Depense_tickers.index(ticker)
-        price = depense_data_frame[i].loc[index]['Close']
-        num = asset.cash / price
-        asset.buy(ticker, num)
-
-print('mdd : ', asset.mdd)
-print(asset.max)
+db = yf.Tickers(' '.join(Attack_tickers + Depense_tickers))
+print(db)

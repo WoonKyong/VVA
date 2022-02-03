@@ -2,9 +2,11 @@ import yfinance as yf
 #import matplotlib.pyplot as plt
 
 Attack_tickers = ['SPY', 'VEA', 'VWO', 'AGG', 'QQQ']
+#Attack_tickers = ['SPY', 'VEA', 'VWO', 'AGG']
+
 Depense_tickers = ['SHY', 'IEF', 'LQD']
 Period = '14y'
-
+InitCash = 100000
 
 class VAA:
     def __init__(self):
@@ -67,13 +69,14 @@ class Asset:
         self.cash = 0
         self.ticker = ticker
         self.num = num
-        print(ticker, num)
+        print('Buy ', ticker)
 
-    def update(self, price):
-        print(price * ticker.num)
+    def printCash(self, price):
+        print('Cash : ', price * self.num)
 
     def sell(self, price):
-        self.cash = self.num * (price * 0.998)
+        #self.cash = self.num * (price * 0.998)
+        self.cash = self.num * price
         self.num = 0
         self.ticker = ''
         print(self.cash)
@@ -84,26 +87,18 @@ class Asset:
             self.mdd = t
 
 
-attack_db = yf.Tickers(' '.join(Attack_tickers))
-depense_db = yf.Tickers(' '.join(Depense_tickers))
+db = yf.Tickers(' '.join(Attack_tickers + Depense_tickers))
 
-attack_data_frame = []
-depense_data_frame = []
-for ticker in Attack_tickers:
-    attack_data_frame.append(attack_db.tickers[ticker].history(
-        period=Period,
-        interval='1mo',
-    ))
-
-for ticker in Depense_tickers:
-    depense_data_frame.append(depense_db.tickers[ticker].history(
-        period=Period, interval='1mo'))
+history = {}
+for ticker in Attack_tickers + Depense_tickers:
+  history[ticker] = db.tickers[ticker].history(period=Period, interval='1mo')
 
 vaa = VAA()
-is_NaN = attack_data_frame[0].isnull()
+is_NaN = history[Attack_tickers[0]].isnull()
 
-asset = Asset(100000)
+asset = Asset(InitCash)
 
+last_cash = 0
 for index in is_NaN.index:
     if is_NaN.loc[index]['Open']:
         continue
@@ -111,38 +106,30 @@ for index in is_NaN.index:
     attack_data = []
     depense_data = []
 
-    for i in range(len(Attack_tickers)):
-        attack_data.append(attack_data_frame[i].loc[index])
-    for i in range(len(Depense_tickers)):
-        depense_data.append(depense_data_frame[i].loc[index])
+    for i in Attack_tickers:
+        attack_data.append(history[i].loc[index])
+    for i in Depense_tickers:
+        depense_data.append(history[i].loc[index])
     vaa.push(attack_data, depense_data)
-    ticker = vaa.run()
-    if ticker == 'None':
+    buy_ticker = vaa.run()
+    if buy_ticker == 'None':
         continue
 
-    if asset.ticker == ticker:
+    if asset.ticker == buy_ticker:
+        asset.printCash(history[buy_ticker].loc[index]['Close'])
         continue
 
     if asset.cash == 0:
-        try:
-            i = Attack_tickers.index(asset.ticker)
-            price = attack_data_frame[i].loc[index]['Close']
-            asset.sell(price)
-        except:
-            i = Depense_tickers.index(asset.ticker)
-            price = depense_data_frame[i].loc[index]['Close']
-            asset.sell(price)
-
-    try:
-        i = Attack_tickers.index(ticker)
-        price = attack_data_frame[i].loc[index]['Close']
-        num = asset.cash / price
-        asset.buy(ticker, num)
-    except:
-        i = Depense_tickers.index(ticker)
-        price = depense_data_frame[i].loc[index]['Close']
-        num = asset.cash / price
-        asset.buy(ticker, num)
-
+      price = history[asset.ticker].loc[index]['Close']
+      asset.sell(price)
+        
+    price = history[buy_ticker].loc[index]['Close']
+    num = asset.cash / price
+    print(index)
+    asset.buy(buy_ticker, num)
+last_cash = history[asset.ticker].iloc[-1]['Close'] * asset.num;
 print('mdd : ', asset.mdd)
-print(asset.max)
+print('last cash : ', last_cash)
+print('CAGR : ', (last_cash / InitCash) ** (1/14) - 1)
+#CAGR : {(최종 가치 ÷ 시초 가치)(1/투자기간) – 1} × 100
+
