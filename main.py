@@ -2,11 +2,13 @@
 import yfinance as yf
 #import matplotlib.pyplot as plt
 
-Attack_tickers = ['SPY', 'VEA', 'VWO', 'AGG', 'QQQ']
+Attack_tickers = ['IVV', 'VEA', 'VWO', 'AGG', 'QQQ']
+#Attack_tickers = ['IVV', 'VEA', 'VWO', 'AGG']
 #Attack_tickers = ['SPY', 'VEA', 'VWO', 'AGG']
+#Attack_tickers = ['VEA', 'VWO', 'AGG', 'QQQ']
 
 Depense_tickers = ['SHY', 'IEF', 'LQD']
-Period = '14y'
+Period = 14
 InitCash = 100000
 
 class VAA:
@@ -65,12 +67,18 @@ class Asset:
         self.max = cash
         self.min = cash
         self.mdd = 0.
+        self.buy_record = dict.fromkeys(Attack_tickers + Depense_tickers, 0)
 
     def buy(self, ticker, num):
         self.cash = 0
         self.ticker = ticker
         self.num = num
         print('Buy ', ticker)
+        self.buy_record[ticker] += 1
+
+    def holding(self):
+        self.buy_record[self.ticker] += 1
+
 
     def printCash(self, price):
         print('Cash : ', price * self.num)
@@ -92,11 +100,10 @@ db = yf.Tickers(' '.join(Attack_tickers + Depense_tickers))
 
 history = {}
 for ticker in Attack_tickers + Depense_tickers:
-  history[ticker] = db.tickers[ticker].history(period=Period, interval='1mo')
+  history[ticker] = db.tickers[ticker].history(period=str(Period)+'y', interval='1mo')
 
 vaa = VAA()
 is_NaN = history[Attack_tickers[0]].isnull()
-
 asset = Asset(InitCash)
 
 last_cash = 0
@@ -117,20 +124,24 @@ for index in is_NaN.index:
         continue
 
     if asset.ticker == buy_ticker:
+        print("Holding", asset.ticker)
+        asset.holding()
         asset.printCash(history[buy_ticker].loc[index]['Close'])
         continue
 
     if asset.cash == 0:
       price = history[asset.ticker].loc[index]['Close']
       asset.sell(price)
-        
+
     price = history[buy_ticker].loc[index]['Close']
     num = asset.cash / price
     print(index)
     asset.buy(buy_ticker, num)
+    asset.printCash(history[buy_ticker].loc[index]['Close'])
 last_cash = history[asset.ticker].iloc[-1]['Close'] * asset.num;
-print('mdd : ', asset.mdd)
-print('last cash : ', last_cash)
-print('CAGR : ', (last_cash / InitCash) ** (1/14) - 1)
+print('Cash change: ', InitCash,  round(last_cash))
+print('mdd : ', round(asset.mdd * 100, 2))
+print('CAGR : ', round(((last_cash / InitCash) ** (1/Period) - 1) * 100, 2))
+print('Statistics: ', asset.buy_record)
 #CAGR : {(최종 가치 ÷ 시초 가치)(1/투자기간) – 1} × 100
 
