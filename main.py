@@ -9,55 +9,38 @@ Attack_tickers = ['IVV', 'VEA', 'VWO', 'AGG', 'QQQ']
 
 Defense_tickers = ['SHY', 'IEF', 'LQD']
 Period = 14
-InitCash = 100000
+InitCash = 10000
+Fee = 0.0004
 
 
 class VAA:
     def __init__(self):
-        self.attack = []
-        self.defense = []
+        self.data = []
 
-    def push(self, attack, defense):
-        self.attack.append(attack)
-        self.defense.append(defense)
+    def push(self, data):
+        self.data.append(data)
 
     def run(self):
-        if len(self.attack) < 15:
-            return "None"
-        # 1개월 수익
-        profit = []
-        for l in range(len(self.attack[-1])):
-            profit.append(
-                (self.attack[-1][l]['Close'] / self.attack[-1][l]['Open'] -
-                 1.0) * 12)
-            profit[-1] += (self.attack[-1][l]['Close'] /
-                           self.attack[-4][l]['Close'] - 1.0) * 4
-            profit[-1] += (self.attack[-1][l]['Close'] /
-                           self.attack[-7][l]['Close'] - 1.0) * 2
-            profit[-1] += (
-                self.attack[-1][l]['Close'] / self.attack[-13][l]['Close'] -
-                1.0)
-            if profit[-1] < 0:
-                break
+        if len(self.data) < 14:
+            return str('')
+        best_ticket = self.__best_score_ticket(Attack_tickers, True)
+        if best_ticket:
+            return best_ticket
+        best_ticket = self.__best_score_ticket(Defense_tickers)
+        return best_ticket
+
+    def __best_score_ticket(self, tickers, negative_check=False):
+        scores = {}
+        for t in tickers:
+            scores[t] = ((self.data[-1][t]['Close'] / self.data[-2][t]['Close'] - 1.0) * 12 +
+                         (self.data[-1][t]['Close'] / self.data[-4][t]['Close'] - 1.0) * 4 +
+                         (self.data[-1][t]['Close'] / self.data[-7][t]['Close'] - 1.0) * 2 +
+                         (self.data[-1][t]['Close'] / self.data[-13][t]['Close'] - 1.0))
+
+            if negative_check and scores[t] < 0:
+                return str('')
         else:
-            max_index = profit.index(max(profit))
-            return Attack_tickers[max_index]
-
-        profit = []
-        for l in range(len(self.defense[-1])):
-            profit.append(
-                (self.defense[-1][l]['Close'] / self.defense[-1][l]['Open'] -
-                 1.0) * 12)
-            profit[-1] += (self.defense[-4][l]['Close'] /
-                           self.defense[-1][l]['Close'] - 1.0) * 4
-            profit[-1] += (self.defense[-7][l]['Close'] /
-                           self.defense[-1][l]['Close'] - 1.0) * 2
-            profit[-1] += (
-                self.defense[-13][l]['Close'] / self.defense[-1][l]['Close'] -
-                1.0)
-
-        max_index = profit.index(max(profit))
-        return Defense_tickers[max_index]
+            return max(scores, key=scores.get)
 
 
 class Asset:
@@ -84,11 +67,9 @@ class Asset:
         print('Cash : ', price * self.num)
 
     def sell(self, price):
-        #self.cash = self.num * (price * 0.998)
-        self.cash = self.num * price
+        self.cash = self.num * price * (1.0 - Fee)
         self.num = 0
         self.ticker = ''
-        print(self.cash)
         if self.max < self.cash:
             self.max = self.cash
         t = (self.cash - self.max) / self.max
@@ -107,19 +88,21 @@ vaa = VAA()
 is_NaN = history[Attack_tickers[0]].isnull()
 asset = Asset(InitCash)
 
-last_cash = 0
 for index in is_NaN.index:
+    if index.day is not 1:
+        continue
+
     if is_NaN.loc[index]['Open']:
         continue
 
-    attack_data = [history[i].loc[index] for i in Attack_tickers]
-    defense_data = [history[i].loc[index] for i in Defense_tickers]
+    data = {k: history[k].loc[index] for k in history.keys()}
 
-    vaa.push(attack_data, defense_data)
+    vaa.push(data)
     buy_ticker = vaa.run()
-    if buy_ticker == 'None':
+    if not buy_ticker:
         continue
 
+    print('----- %s -----' % index)
     if asset.ticker == buy_ticker:
         print("Holding", asset.ticker)
         asset.holding()
@@ -132,12 +115,13 @@ for index in is_NaN.index:
 
     price = history[buy_ticker].loc[index]['Close']
     num = asset.cash / price
-    print(index)
     asset.buy(buy_ticker, num)
     asset.printCash(history[buy_ticker].loc[index]['Close'])
+
+print('\n\n******* Result *******')
 last_cash = history[asset.ticker].iloc[-1]['Close'] * asset.num
-print('Cash change: ', InitCash, round(last_cash))
-print('mdd : ', round(asset.mdd * 100, 2))
+print('Cash change: %d -> %d' % (InitCash, round(last_cash)))
+print('MDD : ', round(asset.mdd * 100, 2))
 print('CAGR : ', round(((last_cash / InitCash) ** (1 / Period) - 1) * 100, 2))
 print('Statistics: ', asset.buy_record)
 # CAGR : {(최종 가치 ÷ 시초 가치)(1/투자기간) – 1} × 100
