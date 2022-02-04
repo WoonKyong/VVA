@@ -1,3 +1,4 @@
+#!/usr/bin/python3
 import yfinance as yf
 #import matplotlib.pyplot as plt
 
