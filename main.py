@@ -7,18 +7,19 @@ Attack_tickers = ['IVV', 'VEA', 'VWO', 'AGG', 'QQQ']
 #Attack_tickers = ['SPY', 'VEA', 'VWO', 'AGG']
 #Attack_tickers = ['VEA', 'VWO', 'AGG', 'QQQ']
 
-Depense_tickers = ['SHY', 'IEF', 'LQD']
+Defense_tickers = ['SHY', 'IEF', 'LQD']
 Period = 14
 InitCash = 100000
+
 
 class VAA:
     def __init__(self):
         self.attack = []
-        self.depense = []
+        self.defense = []
 
-    def push(self, attack, depense):
+    def push(self, attack, defense):
         self.attack.append(attack)
-        self.depense.append(depense)
+        self.defense.append(defense)
 
     def run(self):
         if len(self.attack) < 15:
@@ -43,20 +44,20 @@ class VAA:
             return Attack_tickers[max_index]
 
         profit = []
-        for l in range(len(self.depense[-1])):
+        for l in range(len(self.defense[-1])):
             profit.append(
-                (self.depense[-1][l]['Close'] / self.depense[-1][l]['Open'] -
+                (self.defense[-1][l]['Close'] / self.defense[-1][l]['Open'] -
                  1.0) * 12)
-            profit[-1] += (self.depense[-4][l]['Close'] /
-                           self.depense[-1][l]['Close'] - 1.0) * 4
-            profit[-1] += (self.depense[-7][l]['Close'] /
-                           self.depense[-1][l]['Close'] - 1.0) * 2
+            profit[-1] += (self.defense[-4][l]['Close'] /
+                           self.defense[-1][l]['Close'] - 1.0) * 4
+            profit[-1] += (self.defense[-7][l]['Close'] /
+                           self.defense[-1][l]['Close'] - 1.0) * 2
             profit[-1] += (
-                self.depense[-13][l]['Close'] / self.depense[-1][l]['Close'] -
+                self.defense[-13][l]['Close'] / self.defense[-1][l]['Close'] -
                 1.0)
 
         max_index = profit.index(max(profit))
-        return Depense_tickers[max_index]
+        return Defense_tickers[max_index]
 
 
 class Asset:
@@ -67,7 +68,7 @@ class Asset:
         self.max = cash
         self.min = cash
         self.mdd = 0.
-        self.buy_record = dict.fromkeys(Attack_tickers + Depense_tickers, 0)
+        self.buy_record = dict.fromkeys(Attack_tickers + Defense_tickers, 0)
 
     def buy(self, ticker, num):
         self.cash = 0
@@ -78,7 +79,6 @@ class Asset:
 
     def holding(self):
         self.buy_record[self.ticker] += 1
-
 
     def printCash(self, price):
         print('Cash : ', price * self.num)
@@ -96,11 +96,12 @@ class Asset:
             self.mdd = t
 
 
-db = yf.Tickers(' '.join(Attack_tickers + Depense_tickers))
+db = yf.Tickers(' '.join(Attack_tickers + Defense_tickers))
 
 history = {}
-for ticker in Attack_tickers + Depense_tickers:
-  history[ticker] = db.tickers[ticker].history(period=str(Period)+'y', interval='1mo')
+for ticker in Attack_tickers + Defense_tickers:
+    history[ticker] = db.tickers[ticker].history(
+        period=str(Period) + 'y', interval='1mo')
 
 vaa = VAA()
 is_NaN = history[Attack_tickers[0]].isnull()
@@ -111,14 +112,10 @@ for index in is_NaN.index:
     if is_NaN.loc[index]['Open']:
         continue
 
-    attack_data = []
-    depense_data = []
+    attack_data = [history[i].loc[index] for i in Attack_tickers]
+    defense_data = [history[i].loc[index] for i in Defense_tickers]
 
-    for i in Attack_tickers:
-        attack_data.append(history[i].loc[index])
-    for i in Depense_tickers:
-        depense_data.append(history[i].loc[index])
-    vaa.push(attack_data, depense_data)
+    vaa.push(attack_data, defense_data)
     buy_ticker = vaa.run()
     if buy_ticker == 'None':
         continue
@@ -130,18 +127,17 @@ for index in is_NaN.index:
         continue
 
     if asset.cash == 0:
-      price = history[asset.ticker].loc[index]['Close']
-      asset.sell(price)
+        price = history[asset.ticker].loc[index]['Close']
+        asset.sell(price)
 
     price = history[buy_ticker].loc[index]['Close']
     num = asset.cash / price
     print(index)
     asset.buy(buy_ticker, num)
     asset.printCash(history[buy_ticker].loc[index]['Close'])
-last_cash = history[asset.ticker].iloc[-1]['Close'] * asset.num;
-print('Cash change: ', InitCash,  round(last_cash))
+last_cash = history[asset.ticker].iloc[-1]['Close'] * asset.num
+print('Cash change: ', InitCash, round(last_cash))
 print('mdd : ', round(asset.mdd * 100, 2))
-print('CAGR : ', round(((last_cash / InitCash) ** (1/Period) - 1) * 100, 2))
+print('CAGR : ', round(((last_cash / InitCash) ** (1 / Period) - 1) * 100, 2))
 print('Statistics: ', asset.buy_record)
-#CAGR : {(최종 가치 ÷ 시초 가치)(1/투자기간) – 1} × 100
-
+# CAGR : {(최종 가치 ÷ 시초 가치)(1/투자기간) – 1} × 100
