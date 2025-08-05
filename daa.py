@@ -9,7 +9,7 @@ Defense_tickers = ['SHV', 'IEF', 'LQD']
 
 db = yf.Tickers(' '.join(Monitor_tickers + Attack_tickers + Defense_tickers))
 InitCash = 10000
-
+print("test")
 class DAA:
     def __init__(self):
         self.data = []
